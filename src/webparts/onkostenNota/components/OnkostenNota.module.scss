@@ -1,0 +1,155 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.onkostenNota {
+  overflow: hidden;
+  padding: 1em;
+  color: "[theme:bodyText, default: #323130]";
+  color: var(--bodyText);
+  &.teams {
+    font-family: $ms-font-family-fallbacks;
+  }
+}
+
+.welcome {
+  text-align: center;
+}
+
+.welcomeImage {
+  width: 100%;
+  max-width: 420px;
+}
+
+.links {
+  a {
+    text-decoration: none;
+    color: "[theme:link, default:#03787c]";
+    color: var(--link); // note: CSS Custom Properties support is limited to modern browsers only
+
+    &:hover {
+      text-decoration: underline;
+      color: "[theme:linkHovered, default: #014446]";
+      color: var(--linkHovered); // note: CSS Custom Properties support is limited to modern browsers only
+    }
+  }
+}
+
+/* Container for the page */
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Introductory text */
+.intro,
+.notice,
+.requiredHint {
+  margin-bottom: 1em;
+  line-height: 1.5;
+}
+
+/* Required asterisk */
+.required {
+  color: #d13438; /* Fluent "danger" red */
+  margin-left: 2px;
+}
+
+/* Form */
+.form {
+  margin-top: 2em;
+}
+
+/* Form group */
+.formGroup {
+  margin-bottom: 1.6em;
+
+  label {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0.4em;
+  }
+
+  textarea,
+  input[type="text"],
+  input[type="number"] {
+    width: 100%;
+    padding: 0.5em;
+    border: 1px solid #8a8886;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+
+    &:focus {
+      outline: 2px solid "[theme:themePrimary, default:#0078d4]";
+      outline: 2px solid var(--themePrimary);
+      border-color: transparent;
+    }
+  }
+}
+
+/* Fieldset (radio groups) */
+.fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+
+  legend {
+    font-weight: 600;
+    margin-bottom: 0.4em;
+    display: block;
+  }
+}
+
+/* Radio group layout */
+.radioGroup {
+  display: flex;
+  gap: 2em;
+  margin-top: 0.6em;
+
+  label {
+    font-weight: normal;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+}
+
+/* Help text under inputs */
+.helpText {
+  font-size: 12px;
+  margin-top: 0.3em;
+  color: #605e5c;
+}
+
+/* Buttons */
+.actions {
+  margin-top: 2em;
+}
+
+.primaryButton {
+  background-color: "[theme:themePrimary, default:#0078d4]";
+  background-color: var(--themePrimary);
+  border: none;
+  color: white;
+  padding: 0.7em 1.4em;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+
+  &:hover {
+    background-color: "[theme:themeDarkAlt, default:#005a9e]";
+    background-color: var(--themeDarkAlt);
+  }
+}
+
+.fileInput {
+  display: block;
+  margin-top: 0.4em;
+}
+
+.error {
+  color: #a4262c; // Fluent danger red-ish
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}

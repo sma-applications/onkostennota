@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.20.0",
+    "sdksVersions": {},
+    "version": "1.21.1",
+    "libraryName": "onkostennota",
+    "libraryId": "8efdf0ea-fe27-435b-a795-3053a59f43b2",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "onkostennota",
+    "solutionShortDescription": "onkostennota description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

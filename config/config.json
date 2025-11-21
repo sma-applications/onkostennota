@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "onkosten-nota-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/onkostenNota/OnkostenNotaWebPart.js",
+          "manifest": "./src/webparts/onkostenNota/OnkostenNotaWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "OnkostenNotaWebPartStrings": "lib/webparts/onkostenNota/loc/{locale}.js"
+  }
+}

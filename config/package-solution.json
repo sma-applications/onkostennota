@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "onkostennota-client-side-solution",
+    "id": "8efdf0ea-fe27-435b-a795-3053a59f43b2",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.21.1"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "onkostennota description"
+      },
+      "longDescription": {
+        "default": "onkostennota description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "onkostennota Feature",
+        "description": "The feature that activates elements of the onkostennota solution.",
+        "id": "97e2d4c0-7a76-475e-9c2e-f4c42dd6780d",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/onkostennota.sppkg"
+  }
+}
