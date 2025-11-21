@@ -4,6 +4,8 @@ import type { IOnkostenNotaProps } from './IOnkostenNotaProps';
 import { escape } from '@microsoft/sp-lodash-subset';
 import OnkostenNotaForm from './OnkostenNotaForm';
 import { validateOnkostennota } from './onkostennotaValidation';
+import { OnkostenNotaDocumentService } from './OnkostenNotaDocumentService'; // <- new import
+
 
 
 interface IOnkostenNotaState {
@@ -13,6 +15,8 @@ interface IOnkostenNotaState {
 
 export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IOnkostenNotaState> {
 
+  private _docService: OnkostenNotaDocumentService;
+  
   public constructor(props: IOnkostenNotaProps) {
     super(props);
 
@@ -24,6 +28,8 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     this._handleDoorgerekendChange = this._handleDoorgerekendChange.bind(this);
     this._handleSubmit = this._handleSubmit.bind(this);
     this._clearError = this._clearError.bind(this);
+    // Instantiate the service once, using the WebPart context from props
+    this._docService = new OnkostenNotaDocumentService(this.props.context);
   }
 
   private _handleDoorgerekendChange(event: React.ChangeEvent<HTMLInputElement>): void {
@@ -54,16 +60,13 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     });
   }
 
-  private _handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+  private async _handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
     const form = event.currentTarget;
     const formData = new FormData(form);
 
     const { doorgerekend } = this.state;
-
-    console.log("DEBUG iban raw:", formData.get("rekeningnummer"));
-
 
     // gebruik de aparte validator
     const errors = validateOnkostennota(formData, doorgerekend);
@@ -74,17 +77,35 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
       return;
     }
 
-    // Als alles OK is: hier zou je later de echte submit / API-call doen.
-    // Voor nu gewoon een placeholder:
-    const result: any = {};
+
+    // Maak een gewoon object van de FormData
+    const formValues: { [key: string]: any } = {};
     formData.forEach((value, key) => {
-      result[key] = value;
+      // For files, you might want to treat them differently
+      formValues[key] = value;
     });
 
-    console.log('Formulier is geldig. Hier kan je de data verzenden.', result);
-    alert(
-      'Formulier is geldig en klaar om verzonden te worden (technical placeholder).'
-    );
+    try {
+      // 1. Generate PDF from template
+      const result = await this._docService.generatePdfFromTemplate(
+        formValues,
+        this.props.templateFileUrl
+      );
+
+      // 2a. If you keep it only in memory: open in a new tab
+      const pdfUrl = URL.createObjectURL(result.pdfBlob);
+      window.open(pdfUrl, '_blank');
+
+      // 2b. Or if you rely on SharePoint upload: use result.pdfSharePointUrl
+      // alert(`PDF opgeslagen op: ${result.pdfSharePointUrl}`);
+
+      // You can also show a nicer success message in the UI instead of alert
+      alert('Formulier is geldig en de onkostennota-PDF werd aangemaakt.');
+
+    } catch (e) {
+      console.error('Fout bij aanmaken onkostennota-PDF:', e);
+      alert('Er is een fout opgetreden bij het aanmaken van de onkostennota.');
+    }
   }
 
 

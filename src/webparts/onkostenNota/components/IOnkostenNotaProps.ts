@@ -1,7 +1,11 @@
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+
 export interface IOnkostenNotaProps {
-  description: string;
   isDarkTheme: boolean;
   environmentMessage: string;
   hasTeamsContext: boolean;
   userDisplayName: string;
+  templateFileUrl: string;      // SharePoint file path / URL to the Word template
+  notificationEmail: string; 
+  context: WebPartContext;   // email address
 }

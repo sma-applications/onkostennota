@@ -13,7 +13,8 @@ import OnkostenNota from './components/OnkostenNota';
 import { IOnkostenNotaProps } from './components/IOnkostenNotaProps';
 
 export interface IOnkostenNotaWebPartProps {
-  description: string;
+  templateFileUrl: string;      // SharePoint file path / URL to the Word template
+  notificationEmail: string;    // email address
 }
 
 export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkostenNotaWebPartProps> {
@@ -25,11 +26,13 @@ export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkosten
     const element: React.ReactElement<IOnkostenNotaProps> = React.createElement(
       OnkostenNota,
       {
-        description: this.properties.description,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName
+        userDisplayName: this.context.pageContext.user.displayName,
+        templateFileUrl: this.properties.templateFileUrl,
+        notificationEmail: this.properties.notificationEmail,
+        context: this.context
       }
     );
 
@@ -102,14 +105,20 @@ export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkosten
       pages: [
         {
           header: {
-            description: strings.PropertyPaneDescription
+            description: ' OnkostenNota instellingen'
           },
           groups: [
             {
-              groupName: strings.BasicGroupName,
+              groupName: 'Algemene instellingen',
               groupFields: [
-                PropertyPaneTextField('description', {
-                  label: strings.DescriptionFieldLabel
+                PropertyPaneTextField('templateFileUrl', {
+                  label: 'Pad / URL naar Word-sjabloon',
+                  description: 'Bijv. de URL van het Word-document op SharePoint'
+                }),
+
+                PropertyPaneTextField('Email Financiële dienst', {
+                  label: 'E-mailadres',
+                  description: 'Onkosten worden naar dit adres gestuurd'
                 })
               ]
             }
