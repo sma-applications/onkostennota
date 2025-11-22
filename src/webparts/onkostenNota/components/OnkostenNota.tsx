@@ -104,7 +104,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
 
       // 2b. E-mail versturen met PDF in bijlage
       await this._mailService.sendOnkostenNotaMail(
-        result.pdfBlob,
+        result,
         this.props.notificationEmail,
         this.props.userDisplayName
       );

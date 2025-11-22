@@ -10,14 +10,6 @@ import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import { PDFDocument } from 'pdf-lib';
 
-export interface IGeneratedOnkostenNota {
-  pdfBlob: Blob;
-  pdfFileName: string;
-  // Optionally, if you upload the PDF to SharePoint:
-  pdfSharePointUrl?: string;
-  docxSharePointUrl?: string;
-}
-
 export class OnkostenNotaDocumentService {
   private readonly _context: WebPartContext;
   private readonly _userDisplayName: string;
@@ -42,7 +34,7 @@ export class OnkostenNotaDocumentService {
    */
   public async generatePdfFromTemplate(
     formValues: { [key: string]: any },
-  ): Promise<IGeneratedOnkostenNota> {
+  ): Promise<Blob> {
 
     // 1. Download template as ArrayBuffer
     const templateBuffer = await this._downloadTemplate();
@@ -61,28 +53,14 @@ export class OnkostenNotaDocumentService {
     // 4. Convert uploaded DOCX to PDF via Graph
     const pdf = await this._convertDriveItemToPdf(uploadResult.driveId, uploadResult.itemId);
 
-    // 5. (Optional) upload PDF to SharePoint as well
-    const pdfFileName = docxFileName.replace(/\.docx$/i, '.pdf');
-    let pdfSharePointUrl: string | undefined;
-    try {
-      const pdfUploadResult = await this._uploadPdf(pdf, pdfFileName);
-      if (pdfUploadResult) {
-        pdfSharePointUrl = pdfUploadResult.fileUrl;
-      }
-    } catch (e) {
-      console.error('Failed to upload generated PDF, continuing with blob only', e);
-    }
-
     const invoice = formValues[ 'factuur'] as File;
     const merged = await this.mergePdfWithInvoice(pdf, invoice);
     const pdfBlob = merged.pdfBlob;
 
-    return {
-      pdfBlob,
-      pdfFileName,
-      pdfSharePointUrl,
-      docxSharePointUrl: uploadResult.fileUrl
-    };
+    // Clean up temp DOCX and Graph-generated PDF
+    await this._cleanupTempFiles(uploadResult.driveId, uploadResult.itemId); // pdf contains driveId + itemId returned by _convertDriveItemToPdf
+
+    return pdfBlob;
   }
 
   // --------------------------------------------------
@@ -243,32 +221,32 @@ export class OnkostenNotaDocumentService {
   // 5. (Optional) upload PDF to SharePoint
   // --------------------------------------------------
 
-  private async _uploadPdf(
-    pdfBlob: Blob,
-    fileName: string
-  ): Promise<{ fileUrl: string } | null> {
+//   private async _uploadPdf(
+//     pdfBlob: Blob,
+//     fileName: string
+//   ): Promise<{ fileUrl: string } | null> {
 
-    const arrayBuffer = await pdfBlob.arrayBuffer();
+//     const arrayBuffer = await pdfBlob.arrayBuffer();
 
-    const uploadUrl = this._pathService.getUploadPdfUrl(fileName);
+//     const uploadUrl = this._pathService.getUploadPdfUrl(fileName);
 
-    const response = await this._context.spHttpClient.post(
-      uploadUrl,
-      SPHttpClient.configurations.v1,
-      { body: arrayBuffer }
-    );
+//     const response = await this._context.spHttpClient.post(
+//       uploadUrl,
+//       SPHttpClient.configurations.v1,
+//       { body: arrayBuffer }
+//     );
 
-    if (!response.ok) {
-      const bodyText = await response.text();
-      console.error('Failed to upload PDF', response.status, response.statusText, bodyText);
-      throw new Error(`Failed to upload PDF (status ${response.status})`);
-    }
+//     if (!response.ok) {
+//       const bodyText = await response.text();
+//       console.error('Failed to upload PDF', response.status, response.statusText, bodyText);
+//       throw new Error(`Failed to upload PDF (status ${response.status})`);
+//     }
 
-    const fileInfo: any = await response.json();
-    const serverRelativeFileUrl: string = fileInfo.ServerRelativeUrl;
+//     const fileInfo: any = await response.json();
+//     const serverRelativeFileUrl: string = fileInfo.ServerRelativeUrl;
 
-    return { fileUrl: serverRelativeFileUrl };
-  }
+//     return { fileUrl: serverRelativeFileUrl };
+//   }
 
   // --------------------------------------------------
   // 6. Merge with invoice
@@ -306,6 +284,15 @@ export class OnkostenNotaDocumentService {
     return { pdfBlob: mergedBlob /*, pdfSharePointUrl*/ };
   }
 
+  private async _cleanupTempFiles(driveId: string, itemId: string): Promise<void> {
+    try {
+        const client = await this._context.msGraphClientFactory.getClient('3');
+        await client.api(`/drives/${driveId}/items/${itemId}`).delete();
+    } catch (e) {
+        console.warn('Failed to delete temp file:', e);
+    }
+  }
+
   // --------------------------------------------------
   // Graph client helper
   // --------------------------------------------------
@@ -313,6 +300,7 @@ export class OnkostenNotaDocumentService {
   private async _getGraphClient(): Promise<MSGraphClientV3> {
     return await this._context.msGraphClientFactory.getClient("3");
   }
+
 
   /**
    * Make username safe for filenames
