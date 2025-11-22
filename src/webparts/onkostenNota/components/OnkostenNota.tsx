@@ -16,7 +16,7 @@ interface IOnkostenNotaState {
 export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IOnkostenNotaState> {
 
   private _docService: OnkostenNotaDocumentService;
-  
+
   public constructor(props: IOnkostenNotaProps) {
     super(props);
 
@@ -29,7 +29,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     this._handleSubmit = this._handleSubmit.bind(this);
     this._clearError = this._clearError.bind(this);
     // Instantiate the service once, using the WebPart context from props
-    this._docService = new OnkostenNotaDocumentService(this.props.context);
+    this._docService = new OnkostenNotaDocumentService(this.props.context, this.props.tempDirLocation, this.props.userDisplayName);
   }
 
   private _handleDoorgerekendChange(event: React.ChangeEvent<HTMLInputElement>): void {
@@ -104,7 +104,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
 
     } catch (e) {
       console.error('Fout bij aanmaken onkostennota-PDF:', e);
-      alert('Er is een fout opgetreden bij het aanmaken van de onkostennota.');
+      alert('Er is een fout opgetreden bij het aanmaken van de onkostennota: ' + e.message);
     }
   }
 

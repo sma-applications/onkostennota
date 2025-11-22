@@ -23,6 +23,7 @@
     "officeFabricIconFontName": "Page",
     "properties": {
       "templateFileUrl": "",
+      "tempDirLocation": "",
       "notificationEmail": ""
     }
   }]

@@ -6,6 +6,7 @@ export interface IOnkostenNotaProps {
   hasTeamsContext: boolean;
   userDisplayName: string;
   templateFileUrl: string;      // SharePoint file path / URL to the Word template
+  tempDirLocation: string;
   notificationEmail: string; 
   context: WebPartContext;   // email address
 }

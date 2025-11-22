@@ -14,9 +14,35 @@ export interface IGeneratedOnkostenNota {
 
 export class OnkostenNotaDocumentService {
   private _context: WebPartContext;
+  private tempDirLocation: string;
+  private _targetWebUrl: string;
+  private _sitePrefix: string;          // <-- store the /sites/... prefix
+  private _userDisplayName: string;     // <-- store username
 
-  constructor(context: WebPartContext) {
+  constructor(context: WebPartContext, tempDirLocation: string, userDisplayName: string) {
     this._context = context;
+    this._userDisplayName = userDisplayName;
+
+    this.tempDirLocation = tempDirLocation.replace(/\/$/, '');
+
+    // Decide which library/folder you want to use:
+    // e.g. /sites/YourSite/Shared Documents/Onkostennota/
+    const folderServerRelativeUrl = this.tempDirLocation.trim();
+    
+    // 1. Extract the site part: "/sites/SSM-Personeel"
+    const siteMatch = folderServerRelativeUrl.match(/^\/sites\/[^\/]+/);
+    this._sitePrefix = siteMatch ? siteMatch[0] : "";
+    const siteRelativeUrl = siteMatch
+        ? siteMatch[0]
+        : this._context.pageContext.web.serverRelativeUrl; // fallback
+
+    // 2. Get the tenant root: "https://arcadiascholen.sharepoint.com"
+    const tenantRoot = this._context.pageContext.site.absoluteUrl
+        .split('/sites/')[0];
+
+    // 3. Build the correct base URL for the API:
+    this._targetWebUrl = `${tenantRoot}${siteRelativeUrl}`;
+    // -> "https://arcadiascholen.sharepoint.com/sites/SSM-Personeel"
   }
 
   /**
@@ -30,22 +56,43 @@ export class OnkostenNotaDocumentService {
 
     // 1. Download template as ArrayBuffer
     const templateBuffer = await this._downloadTemplate(templateFileUrl);
+    console.log('Downloaded template:', templateBuffer);
 
     // 2. Fill template with data (using your preferred DOCX library)
     const filledDocxBuffer = await this._fillTemplateWithData(templateBuffer, formValues);
 
     // 3. Upload the filled DOCX back to SharePoint (to a library of your choice)
-    const uploadResult = await this._uploadFilledDocx(filledDocxBuffer, 'Onkostennota_filled.docx');
+    // ---- Unique filename ----
+    const safeUser = this._sanitizeFileName(this._userDisplayName);
+    const timestamp = Date.now();
 
-    // 4. Convert that file to PDF via Microsoft Graph
-    const pdfBlob = await this._convertDriveItemToPdf(uploadResult.driveId, uploadResult.itemId);
+    const docxName = `Onkostennota_${safeUser}_${timestamp}.docx`;
+    const pdfName  = `Onkostennota_${safeUser}_${timestamp}.pdf`;
+
+    const uploadResult = await this._uploadFilledDocx(
+      filledDocxBuffer,
+      docxName
+    );
+    console.log('Uploaded filled DOCX to SharePoint:', uploadResult);
+
+    // Clean the itemId before passing to Graph
+    const cleanedItemId = this._stripSitePrefix(uploadResult.itemId);
+    console.log('Cleaned itemId for Graph:', cleanedItemId);
+    console.log('Site prefix:', this._sitePrefix);
+
+    // 4. Convert the uploaded DOCX to PDF via Graph
+
+    const pdfBlob = await this._convertDriveItemToPdf(
+      uploadResult.driveId,
+      cleanedItemId
+    );
 
     // 5. (Optional) upload the PDF to SharePoint as well
-    const pdfUploadResult = await this._uploadPdf(pdfBlob, 'Onkostennota_filled.pdf');
+    const pdfUploadResult = await this._uploadPdf(pdfBlob, pdfName);
 
     return {
       pdfBlob,
-      pdfFileName: 'Onkostennota_filled.pdf',
+      pdfFileName: pdfName,
       pdfSharePointUrl: pdfUploadResult?.fileUrl,
       docxSharePointUrl: uploadResult.fileUrl
     };
@@ -56,11 +103,14 @@ export class OnkostenNotaDocumentService {
   // --------------------------------------------------
 
   private async _downloadTemplate(templateFileUrl: string): Promise<ArrayBuffer> {
-    // If templateFileUrl is a server-relative or absolute SharePoint URL
-    // you can use SPHttpClient here. Example:
+    const apiUrl =
+        `${this._targetWebUrl}` +
+        `/_api/web/GetFileByServerRelativeUrl('${templateFileUrl}')/$value`;
+
+    console.log('Downloading template from:', apiUrl);
 
     const response = await this._context.spHttpClient.get(
-      templateFileUrl,
+      apiUrl,
       SPHttpClient.configurations.v1 /* SPHttpClient.configurations.v1 */
     );
 
@@ -102,43 +152,78 @@ export class OnkostenNotaDocumentService {
     filledBuffer: ArrayBuffer,
     fileName: string
   ): Promise<{ driveId: string; itemId: string; fileUrl: string }> {
+    const folderServerRelativeUrl = this.tempDirLocation.trim();
 
-    // Decide which library/folder you want to use:
-    // e.g. /sites/YourSite/Shared Documents/Onkostennota/
-    const folderServerRelativeUrl = `${this._context.pageContext.web.serverRelativeUrl}/Shared Documents/Onkostennota`;
+    const uploadUrl =
+    `${this._targetWebUrl}` +
+    `/_api/web/GetFolderByServerRelativeUrl('${folderServerRelativeUrl}')` +
+    `/Files/add(overwrite=true, url='${fileName}')`;
 
-    const uploadUrl = `${this._context.pageContext.web.absoluteUrl}` +
-      `/_api/web/GetFolderByServerRelativeUrl('${encodeURIComponent(folderServerRelativeUrl)}')/Files/add(overwrite=true, url='${encodeURIComponent(fileName)}')`;
+    console.log('Uploading filled DOCX to:', uploadUrl);
 
     const response = await this._context.spHttpClient.post(
-      uploadUrl,
-      SPHttpClient.configurations.v1, // SPHttpClient.configurations.v1
-      {
-        body: filledBuffer
-      }
+        uploadUrl,
+        SPHttpClient.configurations.v1,
+        { body: filledBuffer }
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to upload DOCX: ${response.statusText}`);
+        const bodyText = await response.text();
+        console.error('Failed to upload DOCX', response.status, response.statusText, bodyText);
+        throw new Error(`Failed to upload DOCX (status ${response.status})`);
     }
 
-    //const fileInfo: any = await response.json();
+    const fileInfo: any = await response.json();
 
-    // Get driveId & itemId for Graph from ListItemAllFields
-    // const listItemUrl = fileInfo.ListItemAllFields['__deferred']?.uri;
-    // You might use an extra call to _api/web/lists/getbytitle(...)/items(id)?$select=File/UniqueId, etc.
-    // For brevity, I'll sketch the idea and then use Graph to resolve drive+item:
+    // fileInfo.ServerRelativeUrl is the file’s full path
+    const serverRelativeFileUrl: string = fileInfo.ServerRelativeUrl;
 
+    console.log('Uploaded file serverRelativeUrl:', serverRelativeFileUrl);
+
+    // Resolve drive + item via Graph using the server-relative URL
     const graphClient = await this._getGraphClient();
 
-    const driveItem = await graphClient
-      .api(`/sites/${this._context.pageContext.site.id}/drive/root:/Shared Documents/Onkostennota/${fileName}`)
-      .get();
+    // --- FIX: strip the /sites/SSM-Personeel prefix so Graph sees a drive-relative path ---
+    let graphRelativePath: string;
+
+    const hasPrefix =
+        this._sitePrefix &&
+        serverRelativeFileUrl.slice(0, this._sitePrefix.length) === this._sitePrefix;
+
+    if (hasPrefix) {
+        // Remove "/sites/SSM-Personeel" → "Gedeelde documenten/financieel/temp/..."
+        graphRelativePath = serverRelativeFileUrl
+        .substring(this._sitePrefix.length)
+        .replace(/^\/+/, '');
+    } else {
+        // Fallback: use the web's serverRelativeUrl as before
+        const webServerRelativeUrl = this._context.pageContext.web.serverRelativeUrl.replace(/\/$/, '');
+        graphRelativePath = serverRelativeFileUrl
+        .replace(webServerRelativeUrl, '')
+        .replace(/^\/+/, '');
+    }
+
+    console.log('Graph relative path:', graphRelativePath);
+
+    let driveItem: any;
+    try {
+        driveItem = await graphClient
+        .api(
+            `/sites/${this._context.pageContext.site.id}` +
+            `/drive/root:/${encodeURI(graphRelativePath)}`
+        )
+        .get();
+    } catch (e) {
+        console.error('Graph error when resolving driveItem from path:', e);
+        throw e;
+    }
+
+    console.log('Resolved driveItem:', driveItem);
 
     return {
-      driveId: driveItem.parentReference.driveId,
-      itemId: driveItem.id,
-      fileUrl: driveItem.webUrl
+        driveId: driveItem.parentReference.driveId,
+        itemId: driveItem.id,
+        fileUrl: driveItem.webUrl
     };
   }
 
@@ -169,33 +254,36 @@ export class OnkostenNotaDocumentService {
   private async _uploadPdf(
     pdfBlob: Blob,
     fileName: string
-  ): Promise<{ fileUrl: string } | null> {
-    // If you want to keep everything in memory only,
-    // just return null here instead of uploading.
+    ): Promise<{ fileUrl: string } | null> {
 
     const arrayBuffer = await pdfBlob.arrayBuffer();
 
-    const folderServerRelativeUrl = `${this._context.pageContext.web.serverRelativeUrl}/Shared Documents/Onkostennota`;
-    const uploadUrl = `${this._context.pageContext.web.absoluteUrl}` +
-      `/_api/web/GetFolderByServerRelativeUrl('${encodeURIComponent(folderServerRelativeUrl)}')/Files/add(overwrite=true, url='${encodeURIComponent(fileName)}')`;
+    const folderServerRelativeUrl = this.tempDirLocation;
+
+    const uploadUrl =
+        `${this._context.pageContext.web.absoluteUrl}` +
+        `/_api/web/GetFolderByServerRelativeUrl('${folderServerRelativeUrl}')` +
+        `/Files/add(overwrite=true, url='${fileName}')`;
 
     const response = await this._context.spHttpClient.post(
-      uploadUrl,
-      SPHttpClient.configurations.v1,
-      {
-        body: arrayBuffer
-      }
+        uploadUrl,
+        SPHttpClient.configurations.v1,
+        { body: arrayBuffer }
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to upload PDF: ${response.statusText}`);
+        const bodyText = await response.text();
+        console.error('Failed to upload PDF', response.status, response.statusText, bodyText);
+        throw new Error(`Failed to upload PDF (status ${response.status})`);
     }
 
     const fileInfo: any = await response.json();
-    return {
-      fileUrl: fileInfo.ServerRelativeUrl || fileInfo.ServerRelativeUrl
-    };
-  }
+    const serverRelativeFileUrl: string =
+        fileInfo.ServerRelativeUrl || fileInfo.ServerRelativeUrl;
+
+    return { fileUrl: serverRelativeFileUrl };
+    }
+
 
   // --------------------------------------------------
   // Graph client helper
@@ -203,5 +291,21 @@ export class OnkostenNotaDocumentService {
 
   private async _getGraphClient(): Promise<MSGraphClientV3> {
     return await this._context.msGraphClientFactory.getClient("3");  
+  }
+
+  /**
+   * Remove "/sites/XYZ" prefix from itemId if present
+   */
+  private _stripSitePrefix(itemId: string): string {
+    if (!this._sitePrefix) return itemId;
+    return itemId.replace(this._sitePrefix, "").replace(/^\/+/, "");
+  }
+
+
+  /**
+   * Make username safe for filenames
+   */
+  private _sanitizeFileName(name: string): string {
+    return name.replace(/[^a-z0-9_-]/gi, "_");
   }
 }
