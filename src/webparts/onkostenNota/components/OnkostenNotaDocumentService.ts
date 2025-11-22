@@ -5,6 +5,9 @@ import { SPHttpClient } from '@microsoft/sp-http';
 import { ResponseType } from '@microsoft/microsoft-graph-client';
 import { IOnkostenNotaProps } from './IOnkostenNotaProps';
 import { OnkostenNotaPathService } from './OnkostenNotaPathService';
+import expressionParser from "docxtemplater/expressions.js";
+import PizZip from "pizzip";
+import Docxtemplater from "docxtemplater";
 
 export interface IGeneratedOnkostenNota {
   pdfBlob: Blob;
@@ -110,18 +113,48 @@ export class OnkostenNotaDocumentService {
     templateBuffer: ArrayBuffer,
     formValues: { [key: string]: any }
   ): Promise<ArrayBuffer> {
-    // Here you plug in your DOCX manipulation of choice (docxtemplater, PizZip, etc.).
-    // Pseudo-code:
-    //
-    // const zip = new PizZip(templateBuffer);
-    // const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
-    // doc.setData(formValues);
-    // doc.render();
-    // const out = doc.getZip().generate({ type: 'arraybuffer' });
-    // return out;
-    //
-    // For now, just return the template unchanged so the structure compiles:
-    return templateBuffer;
+
+    // Convert arraybuffer → Uint8Array for PizZip
+    const zip = new PizZip(templateBuffer);
+
+    const parser = expressionParser.configure({
+    // optional: filters, postCompile, ...
+    });
+
+    const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        parser,
+    });
+
+    // Assign raw text values only (skip files)
+    const safeData: any = {};
+    Object.keys(formValues).forEach(key => {
+        if (formValues[key] instanceof File) return; // don't inject binary objects
+        safeData[key] = formValues[key];
+    });
+    safeData['voornaamNaam'] = this._userDisplayName;
+    const date = new Date();
+    safeData['datum'] = new Intl.DateTimeFormat('nl-BE', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    }).format(date);
+
+    doc.setData(safeData);
+
+    try {
+        doc.render();
+    } catch (error) {
+        console.error("Docxtemplater render error", error);
+        throw error;
+    }
+
+    const out = doc.getZip().generate({
+        type: "arraybuffer"
+    });
+
+    return out;
   }
 
   // --------------------------------------------------
