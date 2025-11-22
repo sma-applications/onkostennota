@@ -22,6 +22,7 @@
     "description": { "default": "OnkostenNota description" },
     "officeFabricIconFontName": "Page",
     "properties": {
+      "site": "",
       "templateFileUrl": "",
       "tempDirLocation": "",
       "notificationEmail": ""

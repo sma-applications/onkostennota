@@ -15,7 +15,8 @@ import { IOnkostenNotaProps } from './components/IOnkostenNotaProps';
 export interface IOnkostenNotaWebPartProps {
   templateFileUrl: string;      // SharePoint file path / URL to the Word template
   tempDirLocation: string;
-  notificationEmail: string;    // email address
+  notificationEmail: string;  
+  site: string;  // email address
 }
 
 export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkostenNotaWebPartProps> {
@@ -34,6 +35,7 @@ export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkosten
         templateFileUrl: this.properties.templateFileUrl,
         notificationEmail: this.properties.notificationEmail,
         tempDirLocation: this.properties.tempDirLocation,
+        site: this.properties.site,
         context: this.context
       }
     );
@@ -113,14 +115,18 @@ export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkosten
             {
               groupName: 'Algemene instellingen',
               groupFields: [
+                PropertyPaneTextField('site', {
+                  label: 'De sharepoint site waar de onkostennota\'s worden opgeslagen',
+                  description: 'Bijv. SSM-Personeel'
+                }),
                 PropertyPaneTextField('templateFileUrl', {
                   label: 'Pad / URL naar Word-sjabloon',
-                  description: 'Bijv. de URL van het Word-document op SharePoint'
+                  description: 'Bijv. financieel/forms/onkostennota_template.docx'
                 }),
 
                 PropertyPaneTextField('tempDirLocation', {
                   label: 'Pad waar tijdelijke documenten opgeslagen worden',
-                  description: 'Deze map moet bestaan en schrijfbaar zijn voor elke gebruiker'
+                  description: 'Bijv. financieel/temp Deze map moet bestaan en schrijfbaar zijn voor elke gebruiker'
                 }),
 
                 PropertyPaneTextField('notificationEmail', {

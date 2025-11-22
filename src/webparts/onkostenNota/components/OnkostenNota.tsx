@@ -29,7 +29,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     this._handleSubmit = this._handleSubmit.bind(this);
     this._clearError = this._clearError.bind(this);
     // Instantiate the service once, using the WebPart context from props
-    this._docService = new OnkostenNotaDocumentService(this.props.context, this.props.tempDirLocation, this.props.userDisplayName);
+    this._docService = new OnkostenNotaDocumentService(this.props);
   }
 
   private _handleDoorgerekendChange(event: React.ChangeEvent<HTMLInputElement>): void {
@@ -88,8 +88,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     try {
       // 1. Generate PDF from template
       const result = await this._docService.generatePdfFromTemplate(
-        formValues,
-        this.props.templateFileUrl
+        formValues
       );
 
       // 2a. If you keep it only in memory: open in a new tab

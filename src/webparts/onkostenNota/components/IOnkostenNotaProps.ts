@@ -8,5 +8,6 @@ export interface IOnkostenNotaProps {
   templateFileUrl: string;      // SharePoint file path / URL to the Word template
   tempDirLocation: string;
   notificationEmail: string; 
+  site: string;
   context: WebPartContext;   // email address
 }
