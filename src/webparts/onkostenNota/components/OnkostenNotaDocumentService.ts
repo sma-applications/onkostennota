@@ -8,6 +8,7 @@ import { OnkostenNotaPathService } from './OnkostenNotaPathService';
 import expressionParser from "docxtemplater/expressions.js";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
+import { PDFDocument } from 'pdf-lib';
 
 export interface IGeneratedOnkostenNota {
   pdfBlob: Blob;
@@ -58,19 +59,23 @@ export class OnkostenNotaDocumentService {
     console.log('Uploaded DOCX info:', uploadResult);
 
     // 4. Convert uploaded DOCX to PDF via Graph
-    const pdfBlob = await this._convertDriveItemToPdf(uploadResult.driveId, uploadResult.itemId);
+    const pdf = await this._convertDriveItemToPdf(uploadResult.driveId, uploadResult.itemId);
 
     // 5. (Optional) upload PDF to SharePoint as well
     const pdfFileName = docxFileName.replace(/\.docx$/i, '.pdf');
     let pdfSharePointUrl: string | undefined;
     try {
-      const pdfUploadResult = await this._uploadPdf(pdfBlob, pdfFileName);
+      const pdfUploadResult = await this._uploadPdf(pdf, pdfFileName);
       if (pdfUploadResult) {
         pdfSharePointUrl = pdfUploadResult.fileUrl;
       }
     } catch (e) {
       console.error('Failed to upload generated PDF, continuing with blob only', e);
     }
+
+    const invoice = formValues[ 'factuur'] as File;
+    const merged = await this.mergePdfWithInvoice(pdf, invoice);
+    const pdfBlob = merged.pdfBlob;
 
     return {
       pdfBlob,
@@ -266,6 +271,42 @@ export class OnkostenNotaDocumentService {
   }
 
   // --------------------------------------------------
+  // 6. Merge with invoice
+  // --------------------------------------------------
+
+  public async mergePdfWithInvoice(
+    formPdfBlob: Blob,
+    invoiceFile: File
+  ): Promise<{ pdfBlob: Blob; pdfSharePointUrl?: string }> {
+    const formPdfBytes = new Uint8Array(await formPdfBlob.arrayBuffer());
+
+    // 1. Load the base form PDF
+    const formPdfDoc = await PDFDocument.load(formPdfBytes);
+
+    // 2. Make sure we have a PDF version of the invoice
+    const invoicePdfBytes = await this._ensureInvoicePdf(invoiceFile);
+
+    // 3. Merge invoice-PDF pages into the form-PDF
+    const invoicePdfDoc = await PDFDocument.load(invoicePdfBytes);
+    const invoicePages = await formPdfDoc.copyPages(
+      invoicePdfDoc,
+      invoicePdfDoc.getPageIndices()
+    );
+    invoicePages.forEach(p => formPdfDoc.addPage(p));
+
+    // 4. Save merged
+    const mergedBytes = await formPdfDoc.save();
+    // Tell TypeScript: “yes, this is a real ArrayBuffer”
+    const arrayBuffer = mergedBytes.buffer as ArrayBuffer;
+    const mergedBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+
+    // 5. Optional: upload mergedBlob to SharePoint and return URL
+    // const pdfSharePointUrl = await this._uploadMergedPdfToSharePoint(mergedBlob);
+
+    return { pdfBlob: mergedBlob /*, pdfSharePointUrl*/ };
+  }
+
+  // --------------------------------------------------
   // Graph client helper
   // --------------------------------------------------
 
@@ -278,5 +319,45 @@ export class OnkostenNotaDocumentService {
    */
   private _sanitizeFileName(name: string): string {
     return name.replace(/[^a-z0-9_-]/gi, "_");
+  }
+
+  private async _ensureInvoicePdf(invoiceFile: File): Promise<Uint8Array> {
+    if (invoiceFile.type === 'application/pdf') {
+      return new Uint8Array(await invoiceFile.arrayBuffer());
+    }
+
+    if (invoiceFile.type.startsWith('image/')) {
+      return await this._convertImageToPdf(invoiceFile);
+    }
+
+    throw new Error('Unsupported invoice file type');
+  }
+
+  private async _convertImageToPdf(file: File): Promise<Uint8Array> {
+    const imageBytes = new Uint8Array(await file.arrayBuffer());
+    const pdfDoc = await PDFDocument.create();
+
+    let embedded;
+    if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+      embedded = await pdfDoc.embedJpg(imageBytes);
+    } else if (file.type === 'image/png') {
+      embedded = await pdfDoc.embedPng(imageBytes);
+    } else {
+      // fallback: try PNG by default
+      embedded = await pdfDoc.embedPng(imageBytes);
+    }
+
+    const { width, height } = embedded;
+    const page = pdfDoc.addPage([width, height]);
+
+    page.drawImage(embedded, {
+      x: 0,
+      y: 0,
+      width,
+      height
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
   }
 }
