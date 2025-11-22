@@ -5,24 +5,28 @@ import { escape } from '@microsoft/sp-lodash-subset';
 import OnkostenNotaForm from './OnkostenNotaForm';
 import { validateOnkostennota } from './onkostennotaValidation';
 import { OnkostenNotaDocumentService } from './OnkostenNotaDocumentService'; // <- new import
+import { OnkostenNotaMailService } from './OnkostenNotaMailService';
 
 
 
 interface IOnkostenNotaState {
   doorgerekend: string; // 'ja' | 'nee' | ''
   errors: { [key: string]: string };
+  isSubmitting: boolean;
 }
 
 export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IOnkostenNotaState> {
 
   private _docService: OnkostenNotaDocumentService;
+  private _mailService: OnkostenNotaMailService;
 
   public constructor(props: IOnkostenNotaProps) {
     super(props);
 
     this.state = {
       doorgerekend: '',
-      errors: {}
+      errors: {},
+      isSubmitting: false
     };
 
     this._handleDoorgerekendChange = this._handleDoorgerekendChange.bind(this);
@@ -30,6 +34,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     this._clearError = this._clearError.bind(this);
     // Instantiate the service once, using the WebPart context from props
     this._docService = new OnkostenNotaDocumentService(this.props);
+    this._mailService = new OnkostenNotaMailService(this.props.context);
   }
 
   private _handleDoorgerekendChange(event: React.ChangeEvent<HTMLInputElement>): void {
@@ -77,6 +82,8 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
       return;
     }
 
+    // Geen validatiefouten → we zijn nu aan het verzenden
+    this.setState({ isSubmitting: true });
 
     // Maak een gewoon object van de FormData
     const formValues: { [key: string]: any } = {};
@@ -92,18 +99,32 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
       );
 
       // 2a. If you keep it only in memory: open in a new tab
-      const pdfUrl = URL.createObjectURL(result.pdfBlob);
-      window.open(pdfUrl, '_blank');
+      // const pdfUrl = URL.createObjectURL(result.pdfBlob);
+      // window.open(pdfUrl, '_blank');
 
-      // 2b. Or if you rely on SharePoint upload: use result.pdfSharePointUrl
-      // alert(`PDF opgeslagen op: ${result.pdfSharePointUrl}`);
+      // 2b. E-mail versturen met PDF in bijlage
+      await this._mailService.sendOnkostenNotaMail(
+        result.pdfBlob,
+        this.props.notificationEmail,
+        this.props.userDisplayName
+      );
+
+      // ✅ Alleen bij succes: formulier resetten
+      form.reset();
+      this.setState({
+        doorgerekend: '',
+        errors: {}
+      });
 
       // You can also show a nicer success message in the UI instead of alert
-      alert('Formulier is geldig en de onkostennota-PDF werd aangemaakt.');
+      alert('Formulier is geldig, de onkostennota-PDF werd aangemaakt en verzonden.');
 
     } catch (e) {
       console.error('Fout bij aanmaken onkostennota-PDF:', e);
       alert('Er is een fout opgetreden bij het aanmaken van de onkostennota: ' + e.message);
+    } finally {
+      // In alle gevallen: spinner stoppen, knop terug tonen
+      this.setState({ isSubmitting: false });
     }
   }
 
@@ -114,7 +135,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
       userDisplayName
     } = this.props;
 
-    const { doorgerekend, errors } = this.state;
+    const { doorgerekend, errors, isSubmitting } = this.state;
 
     return (
       <section className={`${styles.onkostenNota} ${hasTeamsContext ? styles.teams : ''}`}>
@@ -140,6 +161,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
             onDoorgerekendChange={this._handleDoorgerekendChange}
             onClearError={this._clearError}
             onSubmit={this._handleSubmit}
+            isSubmitting={isSubmitting}
           />
         </div>
       </section>

@@ -3,17 +3,23 @@
   "solution": {
     "name": "onkostennota-client-side-solution",
     "id": "8efdf0ea-fe27-435b-a795-3053a59f43b2",
-    "version": "1.0.0.0",
+    "version": "1.0.0.1",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
     "developer": {
-      "name": "",
+      "name": "yvan vander sanden",
       "websiteUrl": "",
       "privacyUrl": "",
       "termsOfUseUrl": "",
       "mpnId": "Undefined-1.21.1"
     },
+    "webApiPermissionRequests": [
+      {
+        "resource": "Microsoft Graph",
+        "scope": "Mail.Send"
+      }
+    ],
     "metadata": {
       "shortDescription": {
         "default": "onkostennota description"

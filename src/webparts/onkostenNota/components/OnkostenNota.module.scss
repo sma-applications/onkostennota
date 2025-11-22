@@ -123,23 +123,44 @@
 
 /* Buttons */
 .actions {
-  margin-top: 2em;
+  margin-top: 1.5rem;
+  display: flex;
+  align-items: center;
 }
 
 .primaryButton {
-  background-color: "[theme:themePrimary, default:#0078d4]";
-  background-color: var(--themePrimary);
-  border: none;
-  color: white;
-  padding: 0.7em 1.4em;
+  padding: 0.5rem 1.5rem;
+  border-radius: 2px;
+  border: 1px solid "[theme:primaryButtonBorder, default: #005a9e]";
+  border-color: var(--primaryButtonBorder);
+  background-color: "[theme:primaryButtonBackground, default: #0078d4]";
+  background-color: var(--primaryButtonBackground);
+  color: "[theme:primaryButtonText, default: #ffffff]";
+  color: var(--primaryButtonText);
   font-size: 14px;
   font-weight: 600;
-  border-radius: 4px;
   cursor: pointer;
 
   &:hover {
-    background-color: "[theme:themeDarkAlt, default:#005a9e]";
-    background-color: var(--themeDarkAlt);
+    background-color: "[theme:primaryButtonBackgroundHovered, default: #005a9e]";
+    background-color: var(--primaryButtonBackgroundHovered);
+    border-color: "[theme:primaryButtonBorder, default: #005a9e]";
+    border-color: var(--primaryButtonBorder);
+  }
+
+  &:active {
+    background-color: "[theme:primaryButtonBackgroundPressed, default: #004578]";
+    background-color: var(--primaryButtonBackgroundPressed);
+  }
+
+  &:disabled {
+    cursor: default;
+    background-color: "[theme:primaryButtonBackgroundDisabled, default: #f3f2f1]";
+    background-color: var(--primaryButtonBackgroundDisabled);
+    color: "[theme:primaryButtonTextDisabled, default: #a19f9d]";
+    color: var(--primaryButtonTextDisabled);
+    border-color: "[theme:primaryButtonBorder, default: #f3f2f1]";
+    border-color: var(--primaryButtonBorder);
   }
 }
 
@@ -152,4 +173,8 @@
   color: #a4262c; // Fluent danger red-ish
   font-size: 0.85rem;
   margin-top: 0.25rem;
+}
+
+.spinnerWrapper {
+  margin-left: 0;
 }

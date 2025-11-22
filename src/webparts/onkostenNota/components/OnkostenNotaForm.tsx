@@ -1,6 +1,7 @@
 // OnkostenNotaForm.tsx
 import * as React from 'react';
 import styles from './OnkostenNota.module.scss';
+import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 
 export interface IOnkostenNotaFormProps {
   doorgerekend: string; // 'ja' | 'nee' | ''
@@ -9,6 +10,8 @@ export interface IOnkostenNotaFormProps {
   onDoorgerekendChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onClearError: (fieldName: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+
+  isSubmitting: boolean; 
 }
 
 export default class OnkostenNotaForm extends React.Component<IOnkostenNotaFormProps> {
@@ -18,7 +21,8 @@ export default class OnkostenNotaForm extends React.Component<IOnkostenNotaFormP
       errors,
       onDoorgerekendChange,
       onClearError,
-      onSubmit
+      onSubmit,
+      isSubmitting
     } = this.props;
 
     return (
@@ -249,9 +253,21 @@ export default class OnkostenNotaForm extends React.Component<IOnkostenNotaFormP
 
         {/* Submit */}
         <div className={styles.actions}>
-          <button type="submit" className={styles.primaryButton}>
-            Verzenden
-          </button>
+          {isSubmitting ? (
+            <div className={styles.spinnerWrapper}>
+              <Spinner
+                size={SpinnerSize.medium}
+                label="Bezig met verzenden..."
+              />
+            </div>
+          ) : (
+            <button
+              type="submit"
+              className={styles.primaryButton}
+            >
+              Verzenden
+            </button>
+          )}
         </div>
       </form>
     );
