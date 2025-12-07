@@ -3,7 +3,8 @@ import * as ReactDom from 'react-dom';
 import { Version } from '@microsoft/sp-core-library';
 import {
   type IPropertyPaneConfiguration,
-  PropertyPaneTextField
+  PropertyPaneTextField,
+  PropertyPaneDropdown
 } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
@@ -12,10 +13,11 @@ import * as strings from 'FinancialFormsWebPartStrings';
 import FinancialForms from './components/FinancialForms';
 
 export interface IFinancialFormsWebPartProps {
-  templateFileUrl: string;      // SharePoint file path / URL to the Word template
-  tempDirLocation: string;
   notificationEmail: string;  
-  site: string;  // email address
+  formType: 'onkostennota' | 'verplaatsing' | 'openbaar_vervoer';
+  fietsvergoedingPerKm: string; // of number, als je het meteen parse’t
+  autovergoedingPerKm: string;
+// email address
 }
 
 export default class FinancialFormsWebPart extends BaseClientSideWebPart<IFinancialFormsWebPartProps> {
@@ -31,10 +33,10 @@ export default class FinancialFormsWebPart extends BaseClientSideWebPart<IFinanc
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
         userDisplayName: this.context.pageContext.user.displayName,
-        templateFileUrl: this.properties.templateFileUrl,
         notificationEmail: this.properties.notificationEmail,
-        tempDirLocation: this.properties.tempDirLocation,
-        site: this.properties.site,
+        formType: this.properties.formType,
+        fietsvergoedingPerKm: this.properties.fietsvergoedingPerKm,
+        autovergoedingPerKm: this.properties.autovergoedingPerKm,
         context: this.context
       }
     );
@@ -108,28 +110,55 @@ export default class FinancialFormsWebPart extends BaseClientSideWebPart<IFinanc
       pages: [
         {
           header: {
-            description: ' OnkostenNota instellingen'
+            description: 'instellingen'
           },
           groups: [
             {
               groupName: 'Algemene instellingen',
               groupFields: [
-                PropertyPaneTextField('site', {
-                  label: 'De sharepoint site waar de onkostennota\'s worden opgeslagen',
-                  description: 'Bijv. SSM-Personeel'
-                }),
-                PropertyPaneTextField('templateFileUrl', {
-                  label: 'Pad / URL naar Word-sjabloon',
-                  description: 'Bijv. financieel/forms/onkostennota_template.docx'
+                // 1. Formulier kiezen
+                PropertyPaneDropdown('formType', {
+                  label: 'Formulier',
+                  options: [
+                    { key: 'onkostennota', text: 'Onkostennota' },
+                    { key: 'verplaatsing', text: 'Verplaatsing' },
+                    { key: 'openbaar_vervoer', text: 'Openbaar vervoer' }
+                  ],
+                  selectedKey: 'onkostennota'
                 }),
 
-                PropertyPaneTextField('tempDirLocation', {
-                  label: 'Pad waar tijdelijke documenten opgeslagen worden',
-                  description: 'Bijv. financieel/temp Deze map moet bestaan en schrijfbaar zijn voor elke gebruiker'
+                // 2. Fietsvergoeding per km
+                PropertyPaneTextField('fietsvergoedingPerKm', {
+                  label: 'Fietsvergoeding per km',
+                  description: 'Bijvoorbeeld 0,35',
+                  onGetErrorMessage: (value: string) => {
+                    if (!value) {
+                      return '';
+                    }
+                    const normalized = value.replace(',', '.');
+                    return isNaN(parseFloat(normalized))
+                      ? 'Geef een geldig getal in.'
+                      : '';
+                  }
+                }),
+
+                // 3. Autovergoeding per km
+                PropertyPaneTextField('autovergoedingPerKm', {
+                  label: 'Autovergoeding per km',
+                  description: 'Bijvoorbeeld 0,4170',
+                  onGetErrorMessage: (value: string) => {
+                    if (!value) {
+                      return '';
+                    }
+                    const normalized = value.replace(',', '.');
+                    return isNaN(parseFloat(normalized))
+                      ? 'Geef een geldig getal in.'
+                      : '';
+                  }
                 }),
 
                 PropertyPaneTextField('notificationEmail', {
-                  label: 'Email Financiële dienst',
+                  label: 'Email',
                   description: 'Onkosten worden naar dit adres gestuurd'
                 })
               ]

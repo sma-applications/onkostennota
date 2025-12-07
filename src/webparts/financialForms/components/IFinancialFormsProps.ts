@@ -5,9 +5,9 @@ export interface IFinancialFormsProps {
   environmentMessage: string;
   hasTeamsContext: boolean;
   userDisplayName: string;
-  templateFileUrl: string;      // SharePoint file path / URL to the Word template
-  tempDirLocation: string;
   notificationEmail: string; 
-  site: string;
+  formType: 'onkostennota' | 'verplaatsing' | 'openbaar_vervoer';
+  fietsvergoedingPerKm: string; // of number, als je het meteen parse’t
+  autovergoedingPerKm: string;
   context: WebPartContext;   // email address
 }

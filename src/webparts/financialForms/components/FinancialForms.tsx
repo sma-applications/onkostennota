@@ -1,8 +1,8 @@
 import * as React from 'react';
 import styles from './FinancialForms.module.scss';
 import type { IFinancialFormsProps } from './IFinancialFormsProps';
-import { escape } from '@microsoft/sp-lodash-subset';
-import OnkostenNotaForm from './OnkostenNotaForm';
+import OnkostenNotaForm from './forms/OnkostenNotaForm';
+import OpenbaarVervoerForm from './forms/OpenbaarVervoerForm';
 import { validateOnkostennota } from './onkostennotaValidation';
 import { DocumentService } from './DocumentService'; // <- new import
 import { MailService } from './MailService';
@@ -72,9 +72,13 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
     const formData = new FormData(form);
 
     const { doorgerekend } = this.state;
+    const { formType } = this.props;
 
-    // gebruik de aparte validator
-    const errors = validateOnkostennota(formData, doorgerekend);
+    // Alleen onkostennota krijgt de specifieke validator
+    let errors: { [key: string]: string } = {};
+    if (formType === 'onkostennota') {
+      errors = validateOnkostennota(formData, doorgerekend);
+    }
 
     if (Object.keys(errors).length > 0) {
       this.setState({ errors });
@@ -101,6 +105,7 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
 
     formValues['facturen'] = factuurFiles;
     formValues['doorgerekend'] = this.state.doorgerekend;
+    formValues['formType'] = formType;
 
     try {
       // 1. Generate PDF from template
@@ -127,11 +132,11 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
       });
 
       // You can also show a nicer success message in the UI instead of alert
-      alert('Formulier is geldig, de onkostennota-PDF werd aangemaakt en verzonden.');
+      alert('Formulier is geldig, de PDF werd aangemaakt en verzonden.');
 
     } catch (e) {
-      console.error('Fout bij aanmaken onkostennota-PDF:', e);
-      alert('Er is een fout opgetreden bij het aanmaken van de onkostennota: ' + e.message);
+      console.error('Fout bij aanmaken/verzenden PDF:', e);
+      alert('Er is een fout opgetreden bij het aanmaken van de formulier: ' + e.message);
     } finally {
       // In alle gevallen: spinner stoppen, knop terug tonen
       this.setState({ isSubmitting: false });
@@ -142,30 +147,28 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
   public render(): React.ReactElement<IFinancialFormsProps> {
     const {
       hasTeamsContext,
-      userDisplayName
+      userDisplayName,
+      formType
     } = this.props;
 
     const { doorgerekend, errors, isSubmitting } = this.state;
 
-    return (
-      <section className={`${styles.onkostenNota} ${hasTeamsContext ? styles.teams : ''}`}>
-        <div className={styles.container}>
-          <h2>Onkostennota</h2>
 
-          <p className={styles.intro}>
-            Via dit formulier geef je een onkostennota door aan de financiële dienst.
-            Let op: wanneer je een aankoop doet in naam van de school dien je vooraf steeds
-            toestemming te vragen bij je directie.
-          </p>
-
-          <p className={styles.notice}>
-            Hi, {escape(userDisplayName)}. Wanneer je dit formulier indient,
-            zal de eigenaar je naam en e-mailadres kunnen zien.
-          </p>
-
-          <p className={styles.requiredHint}>Velden gemarkeerd met * zijn verplicht.</p>
-
+    // Kies het juiste formulier op basis van formType
+    const formElement =
+      formType === 'openbaar_vervoer'
+        ? (
+          <OpenbaarVervoerForm
+            userDisplayName={userDisplayName}
+            errors={errors}
+            onClearError={this._clearError}
+            onSubmit={this._handleSubmit}
+            isSubmitting={isSubmitting}
+          />
+        )
+        : (
           <OnkostenNotaForm
+            userDisplayName={userDisplayName}
             doorgerekend={doorgerekend}
             errors={errors}
             onDoorgerekendChange={this._handleDoorgerekendChange}
@@ -173,6 +176,12 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
             onSubmit={this._handleSubmit}
             isSubmitting={isSubmitting}
           />
+        );
+
+    return (
+      <section className={`${styles.onkostenNota} ${hasTeamsContext ? styles.teams : ''}`}>
+        <div className={styles.container}>
+          {formElement}
         </div>
       </section>
     );
