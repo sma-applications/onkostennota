@@ -1,13 +1,13 @@
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 
-export class OnkostenNotaMailService {
+export class MailService {
   private _context: WebPartContext;
 
   constructor(context: WebPartContext) {
     this._context = context;
   }
 
-  public async sendOnkostenNotaMail(
+  public async sendMail(
     pdfBlob: Blob,
     notificationEmail: string,
     userDisplayName: string

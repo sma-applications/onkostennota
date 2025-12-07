@@ -1,6 +1,6 @@
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 
-export interface IOnkostenNotaProps {
+export interface IFinancialFormsProps {
   isDarkTheme: boolean;
   environmentMessage: string;
   hasTeamsContext: boolean;

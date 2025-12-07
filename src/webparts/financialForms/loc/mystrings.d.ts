@@ -1,4 +1,4 @@
-declare interface IOnkostenNotaWebPartStrings {
+declare interface IFinancialFormsWebPartStrings {
   PropertyPaneDescription: string;
   BasicGroupName: string;
   DescriptionFieldLabel: string;
@@ -13,7 +13,7 @@ declare interface IOnkostenNotaWebPartStrings {
   UnknownEnvironment: string;
 }
 
-declare module 'OnkostenNotaWebPartStrings' {
-  const strings: IOnkostenNotaWebPartStrings;
+declare module 'FinancialFormsWebPartStrings' {
+  const strings: IFinancialFormsWebPartStrings;
   export = strings;
 }

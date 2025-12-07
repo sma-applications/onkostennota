@@ -22,10 +22,10 @@
     ],
     "metadata": {
       "shortDescription": {
-        "default": "onkostennota description"
+        "default": "fiancial forms description"
       },
       "longDescription": {
-        "default": "onkostennota description"
+        "default": "financial forms description"
       },
       "screenshotPaths": [],
       "videoUrl": "",
@@ -33,8 +33,8 @@
     },
     "features": [
       {
-        "title": "onkostennota Feature",
-        "description": "The feature that activates elements of the onkostennota solution.",
+        "title": "financial forms Feature",
+        "description": "The feature that activates elements of the financial forms solution.",
         "id": "97e2d4c0-7a76-475e-9c2e-f4c42dd6780d",
         "version": "1.0.0.0"
       }

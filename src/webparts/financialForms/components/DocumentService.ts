@@ -1,5 +1,5 @@
 // OnkostenNotaDocumentService.ts
-import { IOnkostenNotaProps } from './IOnkostenNotaProps';
+import { IFinancialFormsProps } from './IFinancialFormsProps';
 import { PDFDocument, StandardFonts, rgb, PDFPage } from 'pdf-lib';
 
 // Pas deze paden aan als jouw assets-map anders heet
@@ -7,10 +7,10 @@ import { PDFDocument, StandardFonts, rgb, PDFPage } from 'pdf-lib';
 const arcadiaLogoUrl: string = require('../assets/arcadia.png');
 const smaLogoUrl: string = require('../assets/SMA_logo.png');
 
-export class OnkostenNotaDocumentService {
+export class DocumentService {
   private readonly _userDisplayName: string;
 
-  constructor(props: IOnkostenNotaProps) {
+  constructor(props: IFinancialFormsProps) {
     this._userDisplayName = props.userDisplayName;
   }
 

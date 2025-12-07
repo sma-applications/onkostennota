@@ -2,17 +2,17 @@
   "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
   "version": "2.0",
   "bundles": {
-    "onkosten-nota-web-part": {
+    "financial-forms-web-part": {
       "components": [
         {
-          "entrypoint": "./lib/webparts/onkostenNota/OnkostenNotaWebPart.js",
-          "manifest": "./src/webparts/onkostenNota/OnkostenNotaWebPart.manifest.json"
+          "entrypoint": "./lib/webparts/financialForms/FinancialFormsWebPart.js",
+          "manifest": "./src/webparts/financialForms/FinancialFormsWebPart.manifest.json"
         }
       ]
     }
   },
   "externals": {},
   "localizedResources": {
-    "OnkostenNotaWebPartStrings": "lib/webparts/onkostenNota/loc/{locale}.js"
+    "FinancialFormsWebPartStrings": "lib/webparts/financialForms/loc/{locale}.js"
   }
 }

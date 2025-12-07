@@ -1,6 +1,6 @@
 // OnkostenNotaForm.tsx
 import * as React from 'react';
-import styles from './OnkostenNota.module.scss';
+import styles from './FinancialForms.module.scss';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 
 export interface IOnkostenNotaFormProps {

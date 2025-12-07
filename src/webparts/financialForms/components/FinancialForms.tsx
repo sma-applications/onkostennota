@@ -1,26 +1,26 @@
 import * as React from 'react';
-import styles from './OnkostenNota.module.scss';
-import type { IOnkostenNotaProps } from './IOnkostenNotaProps';
+import styles from './FinancialForms.module.scss';
+import type { IFinancialFormsProps } from './IFinancialFormsProps';
 import { escape } from '@microsoft/sp-lodash-subset';
 import OnkostenNotaForm from './OnkostenNotaForm';
 import { validateOnkostennota } from './onkostennotaValidation';
-import { OnkostenNotaDocumentService } from './OnkostenNotaDocumentService'; // <- new import
-import { OnkostenNotaMailService } from './OnkostenNotaMailService';
+import { DocumentService } from './DocumentService'; // <- new import
+import { MailService } from './MailService';
 
 
 
-interface IOnkostenNotaState {
+interface IFinancialFormsState {
   doorgerekend: string; // 'ja' | 'nee' | ''
   errors: { [key: string]: string };
   isSubmitting: boolean;
 }
 
-export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IOnkostenNotaState> {
+export default class FinancialForms extends React.Component<IFinancialFormsProps, IFinancialFormsState> {
 
-  private _docService: OnkostenNotaDocumentService;
-  private _mailService: OnkostenNotaMailService;
+  private _docService: DocumentService;
+  private _mailService: MailService;
 
-  public constructor(props: IOnkostenNotaProps) {
+  public constructor(props: IFinancialFormsProps) {
     super(props);
 
     this.state = {
@@ -33,8 +33,8 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
     this._handleSubmit = this._handleSubmit.bind(this);
     this._clearError = this._clearError.bind(this);
     // Instantiate the service once, using the WebPart context from props
-    this._docService = new OnkostenNotaDocumentService(this.props);
-    this._mailService = new OnkostenNotaMailService(this.props.context);
+    this._docService = new DocumentService(this.props);
+    this._mailService = new MailService(this.props.context);
   }
 
   private _handleDoorgerekendChange(event: React.ChangeEvent<HTMLInputElement>): void {
@@ -113,7 +113,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
       window.open(pdfUrl, '_blank');
 
       // 2b. E-mail versturen met PDF in bijlage
-      await this._mailService.sendOnkostenNotaMail(
+      await this._mailService.sendMail(
         result,
         this.props.notificationEmail,
         this.props.userDisplayName
@@ -139,7 +139,7 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
   }
 
 
-  public render(): React.ReactElement<IOnkostenNotaProps> {
+  public render(): React.ReactElement<IFinancialFormsProps> {
     const {
       hasTeamsContext,
       userDisplayName

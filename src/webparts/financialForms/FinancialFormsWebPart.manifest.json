@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
   "id": "425b7d80-58ec-4429-9c03-1a3c798cb8db",
-  "alias": "OnkostenNotaWebPart",
+  "alias": "FinancialFormsWebPart",
   "componentType": "WebPart",
 
   // The "*" signifies that the version should be taken from the package.json
@@ -18,8 +18,8 @@
   "preconfiguredEntries": [{
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70", // Advanced
     "group": { "default": "Advanced" },
-    "title": { "default": "OnkostenNota" },
-    "description": { "default": "OnkostenNota description" },
+    "title": { "default": "FinancialForms" },
+    "description": { "default": "FinancialForms description" },
     "officeFabricIconFontName": "Page",
     "properties": {
       "site": "",

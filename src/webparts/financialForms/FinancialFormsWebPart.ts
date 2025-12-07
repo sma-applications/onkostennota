@@ -8,25 +8,24 @@ import {
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
 
-import * as strings from 'OnkostenNotaWebPartStrings';
-import OnkostenNota from './components/OnkostenNota';
-import { IOnkostenNotaProps } from './components/IOnkostenNotaProps';
+import * as strings from 'FinancialFormsWebPartStrings';
+import FinancialForms from './components/FinancialForms';
 
-export interface IOnkostenNotaWebPartProps {
+export interface IFinancialFormsWebPartProps {
   templateFileUrl: string;      // SharePoint file path / URL to the Word template
   tempDirLocation: string;
   notificationEmail: string;  
   site: string;  // email address
 }
 
-export default class OnkostenNotaWebPart extends BaseClientSideWebPart<IOnkostenNotaWebPartProps> {
+export default class FinancialFormsWebPart extends BaseClientSideWebPart<IFinancialFormsWebPartProps> {
 
   private _isDarkTheme: boolean = false;
   private _environmentMessage: string = '';
 
   public render(): void {
-    const element: React.ReactElement<IOnkostenNotaProps> = React.createElement(
-      OnkostenNota,
+    const element: React.ReactElement<IFinancialFormsWebPartProps> = React.createElement(
+      FinancialForms,
       {
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
