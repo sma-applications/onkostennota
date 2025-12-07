@@ -243,6 +243,8 @@ export default class OnkostenNotaForm extends React.Component<IOnkostenNotaFormP
             name="factuur"
             type="file"
             className={styles.fileInput}
+            multiple
+            accept=".pdf,image/*"
             required
             onChange={() => onClearError('factuur')}
           />

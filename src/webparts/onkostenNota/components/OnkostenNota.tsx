@@ -87,10 +87,20 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
 
     // Maak een gewoon object van de FormData
     const formValues: { [key: string]: any } = {};
+    // Alle niet-file velden vullen (of in elk geval niet 'factuur')
     formData.forEach((value, key) => {
-      // For files, you might want to treat them differently
-      formValues[key] = value;
+      if (key !== 'factuur') {
+        formValues[key] = value;
+      }
     });
+
+    // Alle bestanden met name 'factuur' ophalen (FileList → File[])
+    const factuurFiles = formData
+      .getAll('factuur')
+      .filter((v) => v instanceof File && (v as File).size > 0) as File[];
+
+    formValues['facturen'] = factuurFiles;
+    formValues['doorgerekend'] = this.state.doorgerekend;
 
     try {
       // 1. Generate PDF from template
@@ -99,8 +109,8 @@ export default class OnkostenNota extends React.Component<IOnkostenNotaProps, IO
       );
 
       // 2a. If you keep it only in memory: open in a new tab
-      // const pdfUrl = URL.createObjectURL(result.pdfBlob);
-      // window.open(pdfUrl, '_blank');
+      const pdfUrl = URL.createObjectURL(result);
+      window.open(pdfUrl, '_blank');
 
       // 2b. E-mail versturen met PDF in bijlage
       await this._mailService.sendOnkostenNotaMail(

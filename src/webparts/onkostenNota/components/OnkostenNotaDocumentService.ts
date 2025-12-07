@@ -1,337 +1,436 @@
 // OnkostenNotaDocumentService.ts
-import { WebPartContext } from '@microsoft/sp-webpart-base';
-import { MSGraphClientV3 } from '@microsoft/sp-http';
-import { SPHttpClient } from '@microsoft/sp-http';
-import { ResponseType } from '@microsoft/microsoft-graph-client';
 import { IOnkostenNotaProps } from './IOnkostenNotaProps';
-import { OnkostenNotaPathService } from './OnkostenNotaPathService';
-import expressionParser from "docxtemplater/expressions.js";
-import PizZip from "pizzip";
-import Docxtemplater from "docxtemplater";
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, PDFPage } from 'pdf-lib';
+
+// Pas deze paden aan als jouw assets-map anders heet
+// In SPFx kun je ook import gebruiken i.p.v. require, als je dat verkiest.
+const arcadiaLogoUrl: string = require('../assets/arcadia.png');
+const smaLogoUrl: string = require('../assets/SMA_logo.png');
 
 export class OnkostenNotaDocumentService {
-  private readonly _context: WebPartContext;
   private readonly _userDisplayName: string;
-  private readonly _pathService: OnkostenNotaPathService;
 
-  /**
-   * Construct the service from the web part props.
-   * All URL related concerns (site, library, folders, ...) are delegated
-   * to OnkostenNotaPathService.
-   */
   constructor(props: IOnkostenNotaProps) {
-    this._context = props.context;
     this._userDisplayName = props.userDisplayName;
-    this._pathService = new OnkostenNotaPathService(props);
   }
 
   /**
-   * Main entry point: generate a filled PDF from template + form values.
-   * `formValues` is a simple object { omschrijving: '...', bedrag: '...', ... }.
-   * /sites/SSM-Personeel/Gedeelde documenten/financieel/forms/onkostennota_template.docx
-   * /sites/SSM-Personeel/Gedeelde documenten/financieel/temp
+   * Bouwt de Onkostennota-PDF volledig in-memory met pdf-lib,
+   * en voegt de factuur (pdf of afbeelding) toe als extra pagina's.
+   *
+   * `formValues` is het object dat je in OnkostenNota.tsx maakt uit FormData:
+   *   {
+   *     omschrijving,
+   *     categorie,
+   *     bedrag,
+   *     rekeningnummer,
+   *     doorgerekend,
+   *     uitstapOfVak?,
+   *     bedragLeerlingen?,
+   *     klassenOfLeerlingen?,
+   *     factuur: File,
+   *   }
    */
   public async generatePdfFromTemplate(
-    formValues: { [key: string]: any },
+    formValues: { [key: string]: any }
   ): Promise<Blob> {
 
-    // 1. Download template as ArrayBuffer
-    const templateBuffer = await this._downloadTemplate();
+    // 1. Basis onkostennota-PDF bouwen
+    const basePdfBytes = await this._buildOnkostenNotaPdf(formValues);
+    const basePdfBlob = new Blob([basePdfBytes], { type: 'application/pdf' });
 
-    // 2. Fill template with data (using your preferred DOCX library)
-    const filledDocxBuffer = await this._fillTemplateWithData(templateBuffer, formValues);
+    // 2. Factuur-bestand (File) uit formValues halen
+    const invoiceFiles =
+      (formValues['facturen'] as File[] | undefined)?.filter(
+        (f) => f && f.size > 0
+      ) ?? [];
 
-    // 3. Upload the filled DOCX back to SharePoint (to a temp folder)
-    const safeUser = this._sanitizeFileName(this._userDisplayName);
-    const timestamp = Date.now();
-    const docxFileName = `Onkostennota_${safeUser}_${timestamp}.docx`;
-
-    const uploadResult = await this._uploadFilledDocx(filledDocxBuffer, docxFileName);
-    console.log('Uploaded DOCX info:', uploadResult);
-
-    // 4. Convert uploaded DOCX to PDF via Graph
-    const pdf = await this._convertDriveItemToPdf(uploadResult.driveId, uploadResult.itemId);
-
-    const invoice = formValues[ 'factuur'] as File;
-    const merged = await this.mergePdfWithInvoice(pdf, invoice);
-    const pdfBlob = merged.pdfBlob;
-
-    // Clean up temp DOCX and Graph-generated PDF
-    await this._cleanupTempFiles(uploadResult.driveId, uploadResult.itemId); // pdf contains driveId + itemId returned by _convertDriveItemToPdf
-
-    return pdfBlob;
-  }
-
-  // --------------------------------------------------
-  // 1. Download template from SharePoint
-  // --------------------------------------------------
-
-  /**
-   * Download the DOCX template from SharePoint using SPHttpClient.
-   * The exact URL is provided by the PathService.
-   */
-  private async _downloadTemplate(): Promise<ArrayBuffer> {
-    const apiUrl = this._pathService.getTemplateDownloadUrl();
-
-    console.log('Downloading template from:', apiUrl);
-
-    const response = await this._context.spHttpClient.get(
-      apiUrl,
-      SPHttpClient.configurations.v1
-    );
-
-    if (!response.ok) {
-      throw new Error(`Failed to download template: ${response.statusText}`);
+    if (invoiceFiles.length > 0) {
+      const merged = await this.mergePdfWithInvoices(basePdfBlob, invoiceFiles);
+      return merged.pdfBlob;
     }
 
-    return await response.arrayBuffer();
+    // Geen factuur (zou normaal niet gebeuren door de validator) → enkel basis-pdf
+    return basePdfBlob;
   }
 
   // --------------------------------------------------
-  // 2. Fill template with data
+  // 1. Basis Onkostennota-pagina opbouwen
   // --------------------------------------------------
 
-  private async _fillTemplateWithData(
-    templateBuffer: ArrayBuffer,
+  private async _buildOnkostenNotaPdf(
     formValues: { [key: string]: any }
-  ): Promise<ArrayBuffer> {
+  ): Promise<Uint8Array> {
 
-    // Convert arraybuffer → Uint8Array for PizZip
-    const zip = new PizZip(templateBuffer);
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage();
+     const { width, height } = page.getSize();
 
-    const parser = expressionParser.configure({
-    // optional: filters, postCompile, ...
-    });
+    const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
 
-    const doc = new Docxtemplater(zip, {
-        paragraphLoop: true,
-        linebreaks: true,
-        parser,
-    });
+    const marginLeft = 50;
+    const marginRight = 50;
+    const contentWidth = width - marginLeft - marginRight;
 
-    // Assign raw text values only (skip files)
-    const safeData: any = {};
-    Object.keys(formValues).forEach(key => {
-        if (formValues[key] instanceof File) return; // don't inject binary objects
-        safeData[key] = formValues[key];
-    });
-    safeData['voornaamNaam'] = this._userDisplayName;
-    const date = new Date();
-    safeData['datum'] = new Intl.DateTimeFormat('nl-BE', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-    }).format(date);
+    // ------------------ HEADER met logo's + adres ------------------
+    const headerLines = [
+      'Herseltsesteenweg 4, 3200 Aarschot',
+      '016 30 08 20',
+      'KBO 0409 949 615 / RPR Leuven'
+    ];
+    const headerFontSize = 9;
 
-    doc.setData(safeData);
+    let headerBottomY: number;
 
     try {
-        doc.render();
-    } catch (error) {
-        console.error("Docxtemplater render error", error);
-        throw error;
+      // Logos laden vanuit bundel-URL
+      const [arcadiaBuf, smaBuf] = await Promise.all([
+        fetch(arcadiaLogoUrl).then(r => r.arrayBuffer()),
+        fetch(smaLogoUrl).then(r => r.arrayBuffer())
+      ]);
+
+      const arcadiaImg = await pdfDoc.embedPng(arcadiaBuf);
+      const smaImg = await pdfDoc.embedPng(smaBuf);
+
+      const logoHeight = 40;
+      const arcadiaWidth = (arcadiaImg.width / arcadiaImg.height) * logoHeight;
+      const smaWidth = (smaImg.width / smaImg.height) * logoHeight;
+
+      const logoY = height - 60 - logoHeight;
+
+      // Linker logo
+      page.drawImage(arcadiaImg, {
+        x: marginLeft,
+        y: logoY,
+        width: arcadiaWidth,
+        height: logoHeight
+      });
+
+      // Rechter logo
+      page.drawImage(smaImg, {
+        x: width - marginRight - smaWidth,
+        y: logoY,
+        width: smaWidth,
+        height: logoHeight
+      });
+
+      // Adresblok gecentreerd tussen de logo's
+      let headerY = logoY + logoHeight - headerFontSize;
+
+      for (const line of headerLines) {
+        const textWidth = font.widthOfTextAtSize(line, headerFontSize);
+        const x = (width - textWidth) / 2;
+        page.drawText(line, {
+          x,
+          y: headerY,
+          size: headerFontSize,
+          font,
+          color: rgb(0, 0, 0)
+        });
+        headerY -= headerFontSize + 2;
+      }
+
+      headerBottomY = headerY;
+    } catch (e) {
+      // Fallback: geen logo's (pad fout of iets anders)
+      let headerY = height - 80;
+      for (const line of headerLines) {
+        const textWidth = font.widthOfTextAtSize(line, headerFontSize);
+        const x = (width - textWidth) / 2;
+        page.drawText(line, {
+          x,
+          y: headerY,
+          size: headerFontSize,
+          font,
+          color: rgb(0, 0, 0)
+        });
+        headerY -= headerFontSize + 2;
+      }
+      headerBottomY = headerY;
     }
 
-    const out = doc.getZip().generate({
-        type: "arraybuffer"
+    // Start van de hoofdinhoud een stukje onder de header
+    let y = headerBottomY - 30;
+
+    const drawText = (
+      text: string,
+      options?: { bold?: boolean; size?: number; lineGap?: number }
+    ) => {
+      const size = options?.size ?? 11;
+      const lineGap = options?.lineGap ?? 4;
+      const usedFont = options?.bold ? boldFont : font;
+
+      if (text && text.trim().length > 0) {
+        page.drawText(text, {
+          x: marginLeft,
+          y,
+          size,
+          font: usedFont,
+          color: rgb(0, 0, 0)
+        });
+      }
+      y -= size + lineGap;
+    };
+
+    const wrapAndDraw = (
+      text: string,
+      maxChars: number,
+      options?: { bold?: boolean; size?: number; lineGap?: number }
+    ) => {
+      if (!text) {
+        return;
+      }
+      const lines = this._wrapText(text, maxChars);
+      for (const line of lines) {
+        drawText(line, options);
+      }
+    };
+
+    // ----- Titel -----
+    drawText('Onkostennota', { bold: true, size: 18, lineGap: 10 });
+    y -= 10;
+
+    // ----- Basisgegevens -----
+    const datum = this._formatDateDutch(new Date());
+    const voornaamNaam =
+      (formValues['voornaamNaam'] as string) || this._userDisplayName;
+
+    drawText(`Voornaam en naam: ${voornaamNaam}   Datum: ${datum}`, {
+      size: 11
     });
+    y -= 10;
 
-    return out;
-  }
+    
 
-  // --------------------------------------------------
-  // 3. Upload filled DOCX and resolve Graph drive/item
-  // --------------------------------------------------
+    drawText(
+      'Heeft de toestemming verkregen via begroting of klasbudget voor:',
+      { size: 11 }
+    );
+    y -= 10;
 
-  private async _uploadFilledDocx(
-    filledBuffer: ArrayBuffer,
-    fileName: string
-  ): Promise<{ driveId: string; itemId: string; fileUrl: string }> {
+    // ------------------ Kader 1: toestemming + omschrijving + categorie ------------------
+    const kader1TopY = y + 5;
 
-    const uploadUrl = this._pathService.getUploadDocxUrl(fileName);
+    // ----- Omschrijving aankoop/kosten -----
+    drawText('Omschrijving aankoop/kosten:', { bold: true });
+    wrapAndDraw(String(formValues['omschrijving'] ?? ''), 90);
+    y -= 10;
 
-    console.log('Uploading filled DOCX to:', uploadUrl);
-
-    const response = await this._context.spHttpClient.post(
-      uploadUrl,
-      SPHttpClient.configurations.v1,
-      { body: filledBuffer }
+    // ----- Categorie -----
+    drawText('Categorie:', { bold: true });
+    drawText(String(formValues['categorie'] ?? ''), { size: 11 });
+    drawText(
+      'Aankoop B- of C-producten vereist VOORAF de toestemming van de preventiedienst',
+      { size: 9 }
     );
 
-    if (!response.ok) {
-      const bodyText = await response.text();
-      console.error('Failed to upload DOCX', response.status, response.statusText, bodyText);
-      throw new Error(`Failed to upload DOCX (status ${response.status})`);
+    // Kader 1 tekenen rond bovenstaande blok
+    this._drawSectionBox(
+      page,
+      marginLeft,
+      contentWidth,
+      kader1TopY,
+      y
+    );
+    y -= 20;
+
+    // ------------------ Kader 2: bedragen & rekeningnummer ------------------
+    const kader2TopY = y+5;
+    // ----- Bedragen & rekeningnummer -----
+    const bedrag = this._formatEuro(formValues['bedrag']);
+    const rekeningNummer = String(formValues['rekeningnummer'] ?? '');
+
+    // In de Word template staat het bedrag twee keer; hier houden we
+    // dezelfde informatie aan.
+
+    drawText(
+      `Volgend bedrag dient aan mij overgeschreven worden: € ${bedrag}`,
+      { bold: true }
+    );
+    y -= 5;
+
+    drawText(`Mijn rekeningnummer: ${rekeningNummer}`, { size: 11 });
+    this._drawSectionBox(
+      page,
+      marginLeft,
+      contentWidth,
+      kader2TopY,
+      y
+    );
+    y -= 20;
+
+    // ----- Doorgerekend-blok (optioneel) -----
+    const doorgerekend = String(formValues['doorgerekend'] ?? '').toLowerCase();
+
+    if (doorgerekend === 'ja') {
+      const uitstapOfVak = String(formValues['uitstapOfVak'] ?? '');
+      const bedragLeerlingen = this._formatEuro(formValues['bedragLeerlingen']);
+      const klassenOfLeerlingen = String(
+        formValues['klassenOfLeerlingen'] ?? ''
+      );
+
+      drawText('Aankoop/onkosten door te rekenen aan de leerlingen', {
+        bold: true
+      });
+      y -= 10;
+
+      drawText(
+        `Aankoop/onkosten voor vak of uitstap: ${uitstapOfVak}.`,
+        { size: 11 }
+      );
+      y -= 5;
+      drawText(
+        `Van dit bedrag moet € ${bedragLeerlingen} worden doorgerekend aan de volgende leerlingen:`,
+        { size: 11 }
+      );
+      wrapAndDraw(klassenOfLeerlingen, 90);
+      y -= 10;
     }
 
-    const fileInfo: any = await response.json();
+    // ----- Factuur/kasbon -----
+    drawText('Factuur of kassabon:', { bold: true });
+    drawText('Zie bijlage.', { size: 11 });
+    y -= 20;
 
-    // fileInfo.ServerRelativeUrl is the file’s full path (not strictly needed anymore,
-    // but logged for debugging purposes).
-    console.log('Uploaded file serverRelativeUrl:', fileInfo.ServerRelativeUrl);
+    // Kleine code/versieregel zoals in de template
+    drawText('CPD Arcadia-2021.02.10', { size: 8 });
 
-    // Resolve drive + item via Graph using the drive-relative path provided by PathService.
-    const graphClient = await this._getGraphClient();
+    const pdfBytes = await pdfDoc.save();
+    return pdfBytes;
+  }
 
-    // Graph path based purely on the configured temp folder + fileName
-    const graphApiPath = await this._pathService.getGraphDocxInfoApiPath(fileName);
+  // Tekent een rechthoek als kader rond een sectie
+  private _drawSectionBox(
+    page: PDFPage,
+    x: number,
+    width: number,
+    sectionTopY: number,
+    currentY: number
+  ): void {
+    const paddingTop = 6;
+    const paddingBottom = 4;
+    const paddingSides = 4;
 
-    let driveItem: any;
-    try {
-      driveItem = await graphClient
-        .api(graphApiPath)
-        .get();
-    } catch (e) {
-      console.error('Graph error when resolving driveItem from path:', e);
-      throw e;
-    }
+    // sectionTopY is y vóór de eerste regel; currentY is y ná de laatste regel
+    const boxTop = sectionTopY + paddingTop;
+    const boxBottom = currentY - paddingBottom;
+    const height = boxTop - boxBottom;
 
-    if (!driveItem || !driveItem.id || !driveItem.parentReference?.driveId) {
-      throw new Error('Could not resolve driveId/itemId for uploaded DOCX via Graph');
-    }
-
-    return {
-      driveId: driveItem.parentReference.driveId,
-      itemId: driveItem.id,
-      fileUrl: driveItem.webUrl
-    };
+    page.drawRectangle({
+      x: x - paddingSides,
+      y: boxBottom,
+      width: width + paddingSides * 2,
+      height,
+      borderWidth: 1,
+      borderColor: rgb(0, 0, 0)
+    });
   }
 
   // --------------------------------------------------
-  // 4. Convert uploaded DOCX to PDF via Graph
+  // Helpers: datum, euro, tekst-wrapping
   // --------------------------------------------------
 
-  private async _convertDriveItemToPdf(driveId: string, itemId: string): Promise<Blob> {
-    const graphClient = await this._getGraphClient();
+  private _formatDateDutch(date: Date): string {
+    return date.toLocaleDateString('nl-BE', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  }
 
-    // Microsoft Graph file conversion endpoint:
-    const apiPath = this._pathService.getGraphPdfContentApiPath(driveId, itemId);
+  private _formatEuro(value: any): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    const num =
+      typeof value === 'number'
+        ? value
+        : parseFloat(String(value).replace(',', '.'));
+    if (isNaN(num)) {
+      return String(value);
+    }
+    return num.toFixed(2).replace('.', ',');
+  }
 
-    const response = await graphClient
-      .api(apiPath)
-      .responseType(ResponseType.ARRAYBUFFER)
-      .get();
+  private _wrapText(text: string, maxChars: number): string[] {
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let current = '';
 
-    const pdfArrayBuffer = response as ArrayBuffer;
-    return new Blob([pdfArrayBuffer], { type: 'application/pdf' });
+    for (const word of words) {
+      if ((current + ' ' + word).trim().length > maxChars) {
+        if (current.length > 0) {
+          lines.push(current);
+        }
+        current = word;
+      } else {
+        current = (current + ' ' + word).trim();
+      }
+    }
+    if (current.length > 0) {
+      lines.push(current);
+    }
+    return lines;
   }
 
   // --------------------------------------------------
-  // 5. (Optional) upload PDF to SharePoint
+  // 2. Mergen met factuur (pdf of afbeelding)
   // --------------------------------------------------
 
-//   private async _uploadPdf(
-//     pdfBlob: Blob,
-//     fileName: string
-//   ): Promise<{ fileUrl: string } | null> {
+  public async mergePdfWithInvoices(
+  formPdfBlob: Blob,
+  invoiceFiles: File[]
+): Promise<{ pdfBlob: Blob; pdfSharePointUrl?: string }> {
 
-//     const arrayBuffer = await pdfBlob.arrayBuffer();
+  const formPdfBytes = new Uint8Array(await formPdfBlob.arrayBuffer());
+  const formPdfDoc = await PDFDocument.load(formPdfBytes);
 
-//     const uploadUrl = this._pathService.getUploadPdfUrl(fileName);
-
-//     const response = await this._context.spHttpClient.post(
-//       uploadUrl,
-//       SPHttpClient.configurations.v1,
-//       { body: arrayBuffer }
-//     );
-
-//     if (!response.ok) {
-//       const bodyText = await response.text();
-//       console.error('Failed to upload PDF', response.status, response.statusText, bodyText);
-//       throw new Error(`Failed to upload PDF (status ${response.status})`);
-//     }
-
-//     const fileInfo: any = await response.json();
-//     const serverRelativeFileUrl: string = fileInfo.ServerRelativeUrl;
-
-//     return { fileUrl: serverRelativeFileUrl };
-//   }
-
-  // --------------------------------------------------
-  // 6. Merge with invoice
-  // --------------------------------------------------
-
-  public async mergePdfWithInvoice(
-    formPdfBlob: Blob,
-    invoiceFile: File
-  ): Promise<{ pdfBlob: Blob; pdfSharePointUrl?: string }> {
-    const formPdfBytes = new Uint8Array(await formPdfBlob.arrayBuffer());
-
-    // 1. Load the base form PDF
-    const formPdfDoc = await PDFDocument.load(formPdfBytes);
-
-    // 2. Make sure we have a PDF version of the invoice
+  for (const invoiceFile of invoiceFiles) {
     const invoicePdfBytes = await this._ensureInvoicePdf(invoiceFile);
-
-    // 3. Merge invoice-PDF pages into the form-PDF
     const invoicePdfDoc = await PDFDocument.load(invoicePdfBytes);
-    const invoicePages = await formPdfDoc.copyPages(
+
+    const pages = await formPdfDoc.copyPages(
       invoicePdfDoc,
       invoicePdfDoc.getPageIndices()
     );
-    invoicePages.forEach(p => formPdfDoc.addPage(p));
-
-    // 4. Save merged
-    const mergedBytes = await formPdfDoc.save();
-    // Tell TypeScript: “yes, this is a real ArrayBuffer”
-    const arrayBuffer = mergedBytes.buffer as ArrayBuffer;
-    const mergedBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-
-    // 5. Optional: upload mergedBlob to SharePoint and return URL
-    // const pdfSharePointUrl = await this._uploadMergedPdfToSharePoint(mergedBlob);
-
-    return { pdfBlob: mergedBlob /*, pdfSharePointUrl*/ };
+    pages.forEach((p) => formPdfDoc.addPage(p));
   }
 
-  private async _cleanupTempFiles(driveId: string, itemId: string): Promise<void> {
-    try {
-        const client = await this._context.msGraphClientFactory.getClient('3');
-        await client.api(`/drives/${driveId}/items/${itemId}`).delete();
-    } catch (e) {
-        console.warn('Failed to delete temp file:', e);
-    }
-  }
+  const mergedBytes = await formPdfDoc.save();
+  const mergedBlob = new Blob([mergedBytes.buffer], {
+    type: 'application/pdf'
+  });
 
-  // --------------------------------------------------
-  // Graph client helper
-  // --------------------------------------------------
-
-  private async _getGraphClient(): Promise<MSGraphClientV3> {
-    return await this._context.msGraphClientFactory.getClient("3");
-  }
+  return { pdfBlob: mergedBlob };
+}
 
 
-  /**
-   * Make username safe for filenames
-   */
-  private _sanitizeFileName(name: string): string {
-    return name.replace(/[^a-z0-9_-]/gi, "_");
-  }
-
-  private async _ensureInvoicePdf(invoiceFile: File): Promise<Uint8Array> {
-    if (invoiceFile.type === 'application/pdf') {
-      return new Uint8Array(await invoiceFile.arrayBuffer());
+  // Zorgt ervoor dat we altijd pdf-bytes krijgen: rechtstreeks of via image → pdf
+  private async _ensureInvoicePdf(file: File): Promise<Uint8Array> {
+    if (file.type === 'application/pdf') {
+      const arrayBuffer = await file.arrayBuffer();
+      return new Uint8Array(arrayBuffer);
     }
 
-    if (invoiceFile.type.startsWith('image/')) {
-      return await this._convertImageToPdf(invoiceFile);
-    }
-
-    throw new Error('Unsupported invoice file type');
-  }
-
-  private async _convertImageToPdf(file: File): Promise<Uint8Array> {
+    // Anders gaan we ervan uit dat het een afbeelding is (jpg/png/…)
     const imageBytes = new Uint8Array(await file.arrayBuffer());
+    return this._imageToPdf(imageBytes, file);
+  }
+
+  // Afbeelding (jpg/png) in één pagina-pdf omzetten
+  private async _imageToPdf(
+    imageBytes: Uint8Array,
+    file: File
+  ): Promise<Uint8Array> {
+
     const pdfDoc = await PDFDocument.create();
 
     let embedded;
     if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
       embedded = await pdfDoc.embedJpg(imageBytes);
-    } else if (file.type === 'image/png') {
-      embedded = await pdfDoc.embedPng(imageBytes);
     } else {
-      // fallback: try PNG by default
+      // png of iets anders → probeer als png
       embedded = await pdfDoc.embedPng(imageBytes);
     }
 
