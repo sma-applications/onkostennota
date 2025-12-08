@@ -3,7 +3,7 @@ import styles from './FinancialForms.module.scss';
 import type { IFinancialFormsProps } from './IFinancialFormsProps';
 import OnkostenNotaForm from './forms/OnkostenNotaForm';
 import OpenbaarVervoerForm from './forms/OpenbaarVervoerForm';
-import { validateOnkostennota } from './onkostennotaValidation';
+import { validateOnkostennota, validateOpenbaarVervoer } from './onValidation';
 import { DocumentService } from './DocumentService'; // <- new import
 import { MailService } from './MailService';
 
@@ -78,6 +78,8 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
     let errors: { [key: string]: string } = {};
     if (formType === 'onkostennota') {
       errors = validateOnkostennota(formData, doorgerekend);
+    } else if (formType === 'openbaar_vervoer') {
+      errors = validateOpenbaarVervoer(formData);
     }
 
     if (Object.keys(errors).length > 0) {
@@ -106,6 +108,7 @@ export default class FinancialForms extends React.Component<IFinancialFormsProps
     formValues['facturen'] = factuurFiles;
     formValues['doorgerekend'] = this.state.doorgerekend;
     formValues['formType'] = formType;
+    formValues['userDisplayName'] = this.props.userDisplayName;
 
     try {
       // 1. Generate PDF from template

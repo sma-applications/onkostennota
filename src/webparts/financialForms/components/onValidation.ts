@@ -1,28 +1,17 @@
 // onkostennotaValidation.ts
 
-export interface OnkostennotaErrors {
+export interface ValidationErrors {
   [key: string]: string;
 }
 
 export function validateOnkostennota(
   formData: FormData,
   doorgerekend: string
-): OnkostennotaErrors {
-  const errors: OnkostennotaErrors = {};
-
-  // Helpers
-  const getText = (name: string) =>
-    ((formData.get(name) as string) || '').trim();
-
-  const getNumber = (name: string): number | null => {
-    const raw = ((formData.get(name) as string) || '').trim();
-    if (!raw) return null;
-    const n = Number(raw.replace(',', '.')); // voor veiligheid
-    return isNaN(n) ? null : n;
-  };
+): ValidationErrors {
+  const errors: ValidationErrors = {};
 
   // 1. Omschrijving
-  const omschrijving = getText('omschrijving');
+  const omschrijving = getText('omschrijving', formData);
   if (!omschrijving) {
     errors['omschrijving'] = 'Vul hier een korte omschrijving in.';
   } else if (omschrijving.length < 5) {
@@ -30,13 +19,13 @@ export function validateOnkostennota(
   }
 
   // 2. Categorie (A/B/C)
-  const categorie = getText('categorie');
+  const categorie = getText('categorie', formData);
   if (!categorie) {
     errors['categorie'] = 'Kies een categorie.';
   }
 
   // 3. Bedrag totaal
-  const bedrag = getNumber('bedrag');
+  const bedrag = getNumber('bedrag', formData);
   if (bedrag === null) {
     errors['bedrag'] = 'Vul een geldig bedrag in.';
   } else if (bedrag < 0) {
@@ -44,7 +33,7 @@ export function validateOnkostennota(
   }
 
   // 4. Rekeningnummer
-    const rekeningnummer = getText('rekeningnummer');
+    const rekeningnummer = getText('rekeningnummer', formData);
 
     if (!rekeningnummer) {
     errors['rekeningnummer'] = 'Dit veld is verplicht.';
@@ -59,12 +48,12 @@ export function validateOnkostennota(
 
   // 6–8 enkel als doorgerekend = ja
   if (doorgerekend === 'ja') {
-    const uitstapOfVak = getText('uitstapOfVak');
+    const uitstapOfVak = getText('uitstapOfVak', formData);
     if (!uitstapOfVak) {
       errors['uitstapOfVak'] = 'Vul in voor welke uitstap of welk vak dit is.';
     }
 
-    const bedragLeerlingen = getNumber('bedragLeerlingen');
+    const bedragLeerlingen = getNumber('bedragLeerlingen', formData);
     if (bedragLeerlingen === null) {
       errors['bedragLeerlingen'] = 'Vul een geldig bedrag in.';
     } else if (bedragLeerlingen < 0) {
@@ -74,7 +63,7 @@ export function validateOnkostennota(
         'Dit bedrag kan niet groter zijn dan het totaalbedrag.';
     }
 
-    const klassenOfLeerlingen = getText('klassenOfLeerlingen');
+    const klassenOfLeerlingen = getText('klassenOfLeerlingen', formData);
     if (!klassenOfLeerlingen) {
       errors['klassenOfLeerlingen'] =
         'Vul in aan wie dit bedrag moet worden verrekend.';
@@ -88,6 +77,75 @@ export function validateOnkostennota(
   }
 
   return errors;
+}
+
+export function validateOpenbaarVervoer(
+  formData: FormData
+): ValidationErrors {
+  const errors: ValidationErrors = {};
+
+  // Verklaring (checkbox)
+  const verklaring = formData.get('verklaring');
+  if (!verklaring) {
+    errors['verklaring'] = 'Je moet de verklaring aanvinken om dit formulier te kunnen indienen.';
+  }
+
+  // Jaar
+  const jaarStr = getText('jaar', formData);
+  const currentYear = new Date().getFullYear();
+  const previousYear = currentYear - 1;
+
+  if (!jaarStr) {
+    errors['jaar'] = 'Kies een jaar.';
+  } else {
+    const jaarNum = parseInt(jaarStr, 10);
+    if (jaarNum !== currentYear && jaarNum !== previousYear) {
+      errors['jaar'] = `Het jaar moet ${previousYear} of ${currentYear} zijn.`;
+    }
+  }
+
+  // Maand
+  const maand = getText('maand', formData);
+  if (!maand) {
+    errors['maand'] = 'Kies een maand.';
+  }
+
+  // Terug te betalen bedrag (> 0)
+  const bedragStr = getText('bedrag', formData);
+  const bedrag = parseFloat(bedragStr.replace(',', '.'));
+  if (!bedragStr || isNaN(bedrag) || bedrag <= 0) {
+    errors['bedrag'] = 'Geef een bedrag groter dan 0 in.';
+  }
+
+  // Rekeningnummer
+  const rekeningnummer = getText('rekeningnummer', formData);
+  const rekeningError = isValidBelgianIban(rekeningnummer);
+  if (!rekeningError) {
+    errors['rekeningnummer'] = 'Dit is geen geldig Belgisch IBAN-nummer.';
+  }
+
+  // Betalingsbewijs (factuur)
+  const factuurFiles = formData
+    .getAll('factuur')
+    .filter(v => v instanceof File && (v as File).size > 0) as File[];
+
+  if (!factuurFiles.length) {
+    errors['factuur'] = 'Voeg minstens één betalingsbewijs toe (pdf of afbeelding).';
+  }
+
+  return errors;
+}
+
+// Helpers
+function getText(name: string, formData: FormData): string {
+  return ((formData.get(name) as string) || '').trim();
+}
+
+function getNumber(name: string, formData: FormData): number | null {
+  const raw = ((formData.get(name) as string) || '').trim();
+  if (!raw) return null;
+  const n = Number(raw.replace(',', '.')); // voor veiligheid
+  return isNaN(n) ? null : n;
 }
 
 function isValidBelgianIban(ibanRaw: string): boolean {

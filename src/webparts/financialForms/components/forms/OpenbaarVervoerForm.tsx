@@ -123,7 +123,7 @@ export default class OpenbaarVervoerForm extends React.Component<IOpenbaarVervoe
           {/* Terug te betalen bedrag */}
           <div className={styles.formGroup}>
             <label htmlFor="bedrag">
-              Terug te betalen bedrag
+              Terug te betalen bedrag (in Euro)
             </label>
             <input
               id="bedrag"
@@ -139,6 +139,23 @@ export default class OpenbaarVervoerForm extends React.Component<IOpenbaarVervoe
             </p>
             {errors['bedrag'] && (
               <p className={styles.error}>{errors['bedrag']}</p>
+            )}
+          </div>
+
+
+          <div className={styles.formGroup}>
+            <label htmlFor="rekeningnummer">
+              Op welk rekeningnummer wil je dit bedrag ontvangen? <span className={styles.required}>*</span>
+            </label>
+            <input
+              id="rekeningnummer"
+              name="rekeningnummer"
+              type="text"
+              required
+              onChange={() => onClearError('rekeningnummer')}
+            />
+            {errors['rekeningnummer'] && (
+              <p className={styles.error}>{errors['rekeningnummer']}</p>
             )}
           </div>
 
